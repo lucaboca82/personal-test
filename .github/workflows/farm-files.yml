@@ -5,7 +5,7 @@ permissions:
 
 on:
   schedule:
-    - cron: '0 */8 * * *'
+    - cron: '0 */8 * * *'   # ogni 8 ore
   workflow_dispatch:
 
 jobs:
@@ -32,13 +32,17 @@ jobs:
         run: |
           echo "farm at $TIMESTAMP" > src/test.txt
           git add src/test.txt
-          git commit -m "chore: update test.txt at $TIMESTAMP"
+          git commit --allow-empty \
+                     --author="bocaletto-luca <${{ secrets.BOCA_EMAIL }}>" \
+                     -m "chore: update test.txt at $TIMESTAMP"
 
       - name: Commit src/test2.txt
         run: |
           echo "farm at $TIMESTAMP" > src/test2.txt
           git add src/test2.txt
-          git commit -m "chore: update test2.txt at $TIMESTAMP"
+          git commit --allow-empty \
+                     --author="bocaletto-luca <${{ secrets.BOCA_EMAIL }}>" \
+                     -m "chore: update test2.txt at $TIMESTAMP"
 
       - name: Push su main
         run: git push origin main
