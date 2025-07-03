@@ -1,44 +1,134 @@
-name: Farm src files
+name: Super Farm Points
 
 on:
   schedule:
-    - cron: '0 */8 * * *'
+    - cron: '0 */8 * * *'   # ogni 8 ore
   workflow_dispatch:
 
 jobs:
-  farm-files:
+  farm:
     runs-on: ubuntu-latest
-
     steps:
 
-      - name: Checkout usando PAT di lucaboca82
+      - name: Checkout col PAT di bocaletto-luca
         uses: actions/checkout@v3
         with:
           token: ${{ secrets.PAT_BOC }}
           fetch-depth: 0
 
-      - name: Configura autore Git a lucaboca82
+      - name: Configura Git come bocaletto-luca
         run: |
-          git config user.name "lucaboca82"
-          git config user.email "lucaboca82@users.noreply.github.com"
+          git config user.name "bocaletto-luca"
+          git config user.email "bocaletto-luca@users.noreply.github.com"
 
-      - name: Prepara cartella e timestamp
+      - name: Prepara src/ e timestamp
         run: |
           mkdir -p src
           TIMESTAMP=$(date -u +'%Y-%m-%d %H:%M:%S UTC')
 
-      - name: Aggiorna test.txt con autore bocaletto-luca
+      - name: Commit test.txt (solo autore bocaletto-luca)
         run: |
           echo "farm at $TIMESTAMP" > src/test.txt
           git add src/test.txt
           git commit --author="bocaletto-luca <bocaletto-luca@users.noreply.github.com>" \
                      -m "chore: update test.txt at $TIMESTAMP"
 
-      - name: Aggiorna test2.txt con solo co-autore bocaletto-luca
+      - name: Commit test2.txt (solo co-autore bocaletto-luca)
         run: |
           echo "farm at $TIMESTAMP" > src/test2.txt
           git add src/test2.txt
           git commit -m $'chore: update test2.txt at '"$TIMESTAMP"$'\n\nCo-authored-by: bocaletto-luca <bocaletto-luca@users.noreply.github.com>'
 
-      - name: Push su main
+      - name: Push commits
         run: git push origin main
+
+      - name: Apri e chiudi 1 issue
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.PAT_BOC }}
+          script: |
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `farm-issue ${new Date().toISOString()}`
+            });
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.data.number,
+              state: "closed"
+            });
+
+      - name: Crea e merge 1 PR
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.PAT_BOC }}
+          script: |
+            const branch = `farm-pr-${Date.now()}`;
+            await github.rest.git.createRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: `refs/heads/${branch}`,
+              sha: context.sha
+            });
+            await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head: branch,
+              base: "main",
+              title: `farm-pr ${branch}`
+            });
+            const prs = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head: `${context.repo.owner}:${branch}`,
+              state: "open"
+            });
+            await github.rest.pulls.merge({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prs.data[0].number,
+              merge_method: "merge"
+            });
+            await github.rest.git.deleteRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: `heads/${branch}`
+            });
+
+      - name: Commenta sull’ultima issue
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.PAT_BOC }}
+          script: |
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 1,
+              sort: "created",
+              direction: "desc"
+            });
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issues.data[0].number,
+              body: `farm-comment at ${new Date().toISOString()}`
+            });
+
+      - name: Aggiorna Wiki Home.md
+        uses: devops-infra/action-wiki@v2
+        with:
+          github_token: ${{ secrets.PAT_BOC }}
+      - run: |
+          echo "- farm wiki at $TIMESTAMP" > docs/Home.md
+          git add docs/Home.md
+          git commit -m "chore: farm wiki $TIMESTAMP"
+          git push
+
+      - name: Crea tag e release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: "farm-${TIMESTAMP//[ :]/}"
+          name: "Farm release $TIMESTAMP"
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT_BOC }}
