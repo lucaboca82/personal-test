@@ -1,8 +1,11 @@
 name: Farm Commits per bocaletto-luca
 
+permissions:
+  contents: write
+
 on:
   schedule:
-    - cron: '0 */8 * * *'    # ogni 8 ore
+    - cron: '0 */8 * * *'
   workflow_dispatch:
 
 jobs:
