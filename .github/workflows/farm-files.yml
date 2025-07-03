@@ -1,0 +1,44 @@
+name: Farm src files
+
+on:
+  schedule:
+    - cron: '0 */8 * * *'
+  workflow_dispatch:
+
+jobs:
+  farm-files:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout usando PAT di lucaboca82
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.PAT_BOC }}
+          fetch-depth: 0
+
+      - name: Configura autore Git a lucaboca82
+        run: |
+          git config user.name "lucaboca82"
+          git config user.email "lucaboca82@users.noreply.github.com"
+
+      - name: Prepara cartella e timestamp
+        run: |
+          mkdir -p src
+          TIMESTAMP=$(date -u +'%Y-%m-%d %H:%M:%S UTC')
+
+      - name: Aggiorna test.txt con autore bocaletto-luca
+        run: |
+          echo "farm at $TIMESTAMP" > src/test.txt
+          git add src/test.txt
+          git commit --author="bocaletto-luca <bocaletto-luca@users.noreply.github.com>" \
+                     -m "chore: update test.txt at $TIMESTAMP"
+
+      - name: Aggiorna test2.txt con solo co-autore bocaletto-luca
+        run: |
+          echo "farm at $TIMESTAMP" > src/test2.txt
+          git add src/test2.txt
+          git commit -m $'chore: update test2.txt at '"$TIMESTAMP"$'\n\nCo-authored-by: bocaletto-luca <bocaletto-luca@users.noreply.github.com>'
+
+      - name: Push su main
+        run: git push origin main
