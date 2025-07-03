@@ -1,46 +1,60 @@
 name: Super Farm Points
 
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  pages: write
+  releases: write
+
+concurrency:
+  group: super-farm-points-${{ github.repository }}
+  cancel-in-progress: true
+
 on:
   schedule:
-    - cron: '0 */8 * * *'   # ogni 8 ore
+    - cron: '0 */8 * * *'  # ogni 8 ore
   workflow_dispatch:
+
+env:
+  MAIN_BRANCH: main
 
 jobs:
   farm:
     runs-on: ubuntu-latest
-    steps:
 
-      - name: Checkout col PAT di bocaletto-luca
+    steps:
+      - name: Checkout con PAT di bocaletto-luca
         uses: actions/checkout@v3
         with:
           token: ${{ secrets.PAT_BOC }}
           fetch-depth: 0
 
-      - name: Configura Git come bocaletto-luca
+      - name: Configura Git per lucaboca82
         run: |
-          git config user.name "bocaletto-luca"
-          git config user.email "bocaletto-luca@users.noreply.github.com"
+          git config user.name "lucaboca82"
+          git config user.email "lucaboca82@users.noreply.github.com"
 
       - name: Prepara src/ e timestamp
         run: |
           mkdir -p src
-          TIMESTAMP=$(date -u +'%Y-%m-%d %H:%M:%S UTC')
+          echo "TIMESTAMP=$(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_ENV
 
-      - name: Commit test.txt (solo autore bocaletto-luca)
+      - name: Commit src/test.txt (author = bocaletto-luca)
         run: |
           echo "farm at $TIMESTAMP" > src/test.txt
           git add src/test.txt
           git commit --author="bocaletto-luca <bocaletto-luca@users.noreply.github.com>" \
                      -m "chore: update test.txt at $TIMESTAMP"
 
-      - name: Commit test2.txt (solo co-autore bocaletto-luca)
+      - name: Commit src/test2.txt (co-author = bocaletto-luca)
         run: |
           echo "farm at $TIMESTAMP" > src/test2.txt
           git add src/test2.txt
           git commit -m $'chore: update test2.txt at '"$TIMESTAMP"$'\n\nCo-authored-by: bocaletto-luca <bocaletto-luca@users.noreply.github.com>'
 
-      - name: Push commits
-        run: git push origin main
+      - name: Push commits su main
+        run: git push origin $MAIN_BRANCH
 
       - name: Apri e chiudi 1 issue
         uses: actions/github-script@v6
@@ -71,23 +85,17 @@ jobs:
               ref: `refs/heads/${branch}`,
               sha: context.sha
             });
-            await github.rest.pulls.create({
+            const pr = await github.rest.pulls.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
               head: branch,
-              base: "main",
+              base: context.repo.default_branch,
               title: `farm-pr ${branch}`
-            });
-            const prs = await github.rest.pulls.list({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              head: `${context.repo.owner}:${branch}`,
-              state: "open"
             });
             await github.rest.pulls.merge({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              pull_number: prs.data[0].number,
+              pull_number: pr.data.number,
               merge_method: "merge"
             });
             await github.rest.git.deleteRef({
@@ -119,16 +127,21 @@ jobs:
         uses: devops-infra/action-wiki@v2
         with:
           github_token: ${{ secrets.PAT_BOC }}
-      - run: |
+      - name: Commit wiki update
+        run: |
           echo "- farm wiki at $TIMESTAMP" > docs/Home.md
           git add docs/Home.md
           git commit -m "chore: farm wiki $TIMESTAMP"
           git push
 
-      - name: Crea tag e release
+      - name: Setta TAG e crea Release
+        id: set-tag
+        run: echo "TAG=$(date +'%Y%m%d%H%M')" >> $GITHUB_ENV
+
+      - name: Crea GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: "farm-${TIMESTAMP//[ :]/}"
-          name: "Farm release $TIMESTAMP"
+          tag_name: "farm-${{ env.TAG }}"
+          name: "Farm release ${{ env.TAG }}"
         env:
           GITHUB_TOKEN: ${{ secrets.PAT_BOC }}
